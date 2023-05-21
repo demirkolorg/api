@@ -22,6 +22,8 @@ module.exports = {
     CREATE: "CREATE",
     UPDATE: "UPDATE",
     DELETE: "DELETE",
+    REPORT: "REPORT",
+    PRINT: "PRINT",
   },
   HTTP_CODES: {
     CONTINUE: 100,

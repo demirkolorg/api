@@ -7,13 +7,18 @@ const Enum = require("../config/Enum");
 const ms = require("../lib/MagicStrings");
 const AuditLogs = require("../lib/AuditLogs");
 const Logger = require("../lib/logs/LoggerClass");
+const auth = require("../lib/auth")();
 
-router.get("/", async (req, res, next) => {
+router.all("*", auth.authenticate(), (res, req, next) => {
+  next();
+});
+
+router.get("/",auth.checkRoles("category_view"), async (req, res, next) => {
   try {
     let categories = await Categories.find({});
 
     AuditLogs.info({
-      email: "req.user?.email",
+      email: req.user?.email,
       location: Enum.END_POINTS.CATEGORIES,
       proc_type: Enum.PROCESSES_TYPES.LIST,
       log: { ...categories },
@@ -28,7 +33,7 @@ router.get("/", async (req, res, next) => {
     );
   } catch (err) {
     Logger.error({
-      email: "req.user?.email",
+      email: req.user?.email,
       location: Enum.END_POINTS.CATEGORIES,
       proc_type: Enum.PROCESSES_TYPES.LIST,
       log: err,
@@ -39,7 +44,7 @@ router.get("/", async (req, res, next) => {
   }
 });
 
-router.post("/add", async (req, res, next) => {
+router.post("/add",auth.checkRoles("category_add"), async (req, res, next) => {
   let body = req.body;
   try {
     if (!body.name)
@@ -52,20 +57,20 @@ router.post("/add", async (req, res, next) => {
     let category = new Categories({
       name: body.name,
       is_active: true,
-      created_by: "req.user?.id", // TODO: user login is required
+      created_by: req.user?.id,
     });
 
     await category.save();
 
     AuditLogs.info({
-      email: "req.user?.email",
+      email: req.user?.email,
       location: Enum.END_POINTS.CATEGORIES,
       proc_type: Enum.PROCESSES_TYPES.CREATE,
       log: { ...category },
     });
 
     Logger.info(
-      "req.user?.email",
+      req.user?.email,
       Enum.END_POINTS.CATEGORIES,
       Enum.PROCESSES_TYPES.CREATE,
       category
@@ -80,7 +85,7 @@ router.post("/add", async (req, res, next) => {
     );
   } catch (err) {
     Logger.error(
-      "req.user?.email",
+      req.user?.email,
       Enum.END_POINTS.CATEGORIES,
       Enum.PROCESSES_TYPES.CREATE,
       err
@@ -91,7 +96,7 @@ router.post("/add", async (req, res, next) => {
   }
 });
 
-router.post("/update", async (req, res, next) => {
+router.post("/update",auth.checkRoles("category_update"), async (req, res, next) => {
   let body = req.body;
   try {
     if (!body._id)
@@ -109,7 +114,7 @@ router.post("/update", async (req, res, next) => {
     let category = await Categories.find({ _id: body._id });
 
     AuditLogs.info({
-      email: "req.user?.email",
+      email: req.user?.email,
       location: Enum.END_POINTS.CATEGORIES,
       proc_type: Enum.PROCESSES_TYPES.UPDATE,
       log: { ...category },
@@ -128,7 +133,7 @@ router.post("/update", async (req, res, next) => {
   }
 });
 
-router.post("/delete", async (req, res, next) => {
+router.post("/delete",auth.checkRoles("category_delete"), async (req, res, next) => {
   let body = req.body;
   try {
     if (!body._id)
@@ -143,7 +148,7 @@ router.post("/delete", async (req, res, next) => {
     await Categories.deleteOne({ _id: body._id });
 
     AuditLogs.info({
-      email: "req.user?.email",
+      email: req.user?.email,
       location: Enum.END_POINTS.CATEGORIES,
       proc_type: Enum.PROCESSES_TYPES.DELETE,
       log: { ...removedCategory },

@@ -8,13 +8,18 @@ const RolePrivileges = require("../db/models/RolePrivileges");
 const role_privileges = require("../config/role_privileges");
 const AuditLogs = require("../lib/AuditLogs");
 const CustomError = require("../lib/Error");
+const auth = require("../lib/auth")();
 
-router.get("/", async (req, res, next) => {
+router.all("*", auth.authenticate(), (res, req, next) => {
+  next();
+});
+
+router.get("/",auth.checkRoles("role_view"), async (req, res, next) => {
   try {
     let roles = await Roles.find({});
 
     AuditLogs.info({
-      email: "req.user?.email",
+      email: req.user?.email,
       location: Enum.END_POINTS.ROLES,
       proc_type: Enum.PROCESSES_TYPES.LIST,
       log: { ...roles },
@@ -33,7 +38,7 @@ router.get("/", async (req, res, next) => {
   }
 });
 
-router.post("/add", async (req, res, next) => {
+router.post("/add",auth.checkRoles("role_add"), async (req, res, next) => {
   let body = req.body;
   try {
     if (!body.role_name)
@@ -57,13 +62,13 @@ router.post("/add", async (req, res, next) => {
     let role = new Roles({
       role_name: body.role_name,
       is_active: true,
-      created_by: "req.user?.id", // TODO: user login is required
+      created_by: req.user?.id,
     });
 
     await role.save();
 
     AuditLogs.info({
-      email: "req.user?.email",
+      email: req.user?.email,
       location: Enum.END_POINTS.ROLES,
       proc_type: Enum.PROCESSES_TYPES.CREATE,
       log: { ...role },
@@ -73,7 +78,7 @@ router.post("/add", async (req, res, next) => {
       let priv = new RolePrivileges({
         role_id: role._id,
         permission: body.permissions[i],
-        created_by: "req.user?.id", // TODO: user login is required
+        created_by: req.user?.id, 
       });
       await priv.save();
     }
@@ -91,7 +96,7 @@ router.post("/add", async (req, res, next) => {
   }
 });
 
-router.post("/update", async (req, res, next) => {
+router.post("/update",auth.checkRoles("role_update"), async (req, res, next) => {
   let body = req.body;
   try {
     if (!body._id)
@@ -130,7 +135,7 @@ router.post("/update", async (req, res, next) => {
           let priv = new RolePrivileges({
             role_id: body._id,
             permission: newPermissions[i],
-            created_by: "req.user?.id", // TODO: user login is required
+            created_by: req.user?.id, 
           });
           await priv.save();
         }
@@ -141,7 +146,7 @@ router.post("/update", async (req, res, next) => {
     let role = await Roles.find({ _id: body._id });
 
     AuditLogs.info({
-      email: "req.user?.email",
+      email: req.user?.email,
       location: Enum.END_POINTS.ROLES,
       proc_type: Enum.PROCESSES_TYPES.UPDATE,
       log: { ...role },
@@ -160,7 +165,7 @@ router.post("/update", async (req, res, next) => {
   }
 });
 
-router.post("/delete", async (req, res, next) => {
+router.post("/delete",auth.checkRoles("role_delete"), async (req, res, next) => {
   let body = req.body;
   try {
     if (!body._id)
@@ -175,7 +180,7 @@ router.post("/delete", async (req, res, next) => {
     await Roles.deleteOne({ _id: body._id });
 
     AuditLogs.info({
-      email: "req.user?.email",
+      email: req.user?.email,
       location: Enum.END_POINTS.ROLES,
       proc_type: Enum.PROCESSES_TYPES.DELETE,
       log: { ...roles },

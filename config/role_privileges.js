@@ -43,6 +43,18 @@ module.exports = {
             group: "USERS",
             description: "User Delete"
         },
+        {
+            key: "user_report",
+            name: "User Report",
+            group: "USERS",
+            description: "User Report"
+        },
+        {
+            key: "user_print",
+            name: "User Print",
+            group: "USERS",
+            description: "User Print"
+        },
         //* ROLES
         {
             key: "role_view",
@@ -68,6 +80,18 @@ module.exports = {
             group: "ROLES",
             description: "Role Delete"
         },
+        {
+            key: "role_report",
+            name: "Role Report",
+            group: "ROLES",
+            description: "Roles Report"
+        },
+        {
+            key: "role_print",
+            name: "RoleUser Print",
+            group: "ROLESUSERS",
+            description: "Role Print"
+        },
         //* CATEGORIES
         {
             key: "category_view",
@@ -92,6 +116,18 @@ module.exports = {
             name: "Category Delete",
             group: "CATEGORIES",
             description: "Category Delete"
+        },
+        {
+            key: "category_report",
+            name: "Category Report",
+            group: "CATEGORIES",
+            description: "Category Report"
+        },
+        {
+            key: "category_print",
+            name: "Category Print",
+            group: "CATEGORIES",
+            description: "Category Print"
         },
 
         //* AUDITLOGS

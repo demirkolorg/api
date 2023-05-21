@@ -1,5 +1,5 @@
-var express = require("express");
-var router = express.Router();
+const express = require("express");
+const router = express.Router();
 const Response = require("../lib/Response");
 const CustomError = require("../lib/Error");
 const Enum = require("../config/Enum");
@@ -12,13 +12,177 @@ const AuditLogs = require("../lib/AuditLogs");
 const Roles = require("../db/models/Roles");
 const config = require("../config");
 const jwt = require("jwt-simple");
+const auth = require("../lib/auth")();
 
-router.get("/", async (req, res, next) => {
+router.post("/register", async (req, res) => {
+  let body = req.body;
+  try {
+    let user = await Users.findOne({});
+    if (user) {
+      return res.sendStatus(Enum.HTTP_CODES.NOT_FOUND);
+    }
+
+    if (!body.first_name)
+      throw new CustomError(
+        Enum.HTTP_CODES.BAD_REQUEST,
+        ms.Users.add.first_nameValidationErrorMsg,
+        ms.Users.add.first_nameValidationErrorDesc
+      );
+
+    if (!body.last_name)
+      throw new CustomError(
+        Enum.HTTP_CODES.BAD_REQUEST,
+        ms.Users.add.last_nameValidationErrorMsg,
+        ms.Users.add.last_nameValidationErrorDesc
+      );
+
+    if (!body.email)
+      throw new CustomError(
+        Enum.HTTP_CODES.BAD_REQUEST,
+        ms.Users.add.emailValidationErrorMsg,
+        ms.Users.add.emailValidationErrorDesc
+      );
+
+    if (!is.email(body.email))
+      throw new CustomError(
+        Enum.HTTP_CODES.BAD_REQUEST,
+        ms.Users.add.isEmailValidationErrorMsg,
+        ms.Users.add.isEmailValidationErrorDesc
+      );
+
+    if (!body.password)
+      throw new CustomError(
+        Enum.HTTP_CODES.BAD_REQUEST,
+        ms.Users.add.passwordValidationErrorMsg,
+        ms.Users.add.passwordValidationErrorDesc
+      );
+
+    if (body.password < Enum.PASS_LENGTH)
+      throw new CustomError(
+        Enum.HTTP_CODES.BAD_REQUEST,
+        ms.Users.add.passwordLenghtValidationErrorMsg,
+        ms.Users.add.passwordLenghtValidationErrorDesc
+      );
+
+    let password = bcrypt.hashSync(body.password, bcrypt.genSaltSync(8), null);
+
+    let createdUser = await Users.create({
+      email: body.email,
+      password: password,
+      is_active: body.is_active,
+      first_name: body.first_name,
+      last_name: body.last_name,
+      phone_number: body.phone_number,
+    });
+
+    if (createdUser) {
+      AuditLogs.info({
+        email: req.user?.email,
+        location: Enum.END_POINTS.USERS,
+        proc_type: Enum.PROCESSES_TYPES.CREATE,
+        log: { ...createdUser },
+      });
+    }
+
+    let createdRole = await Roles.create({
+      role_name: Enum.SUPER_ADMIN,
+      is_active: true,
+      created_by: createdUser._id,
+    });
+
+    if (createdRole) {
+      AuditLogs.info({
+        email: req.user?.email,
+        location: Enum.END_POINTS.ROLES,
+        proc_type: Enum.PROCESSES_TYPES.CREATE,
+        log: { ...createdRole },
+      });
+    }
+
+    await UserRoles.create({
+      role_id: createdRole._id,
+      user_id: createdUser._id,
+    });
+
+    if (UserRoles) {
+      AuditLogs.info({
+        email: req.user?.email,
+        location: Enum.END_POINTS.USER_ROLES,
+        proc_type: Enum.PROCESSES_TYPES.CREATE,
+        log: { ...UserRoles },
+      });
+    }
+
+    res.json(
+      Response.successResponse(
+        createdUser,
+        ms.Users.add.eklemeBasariliTitle,
+        ms.Users.add.eklemeBasariliDesc
+      )
+    );
+  } catch (err) {
+    let errorResponse = Response.errorResponse(err);
+    res.status(errorResponse.code).json(errorResponse);
+  }
+});
+
+router.post("/auth", async (req, res) => {
+  let { email, password } = req.body;
+  try {
+    Users.validateFieldBeforeAuht(email, password);
+
+    let user = await Users.findOne({ email });
+
+    if (!user) {
+      throw new CustomError(
+        Enum.HTTP_CODES.UNAUTHORIZED,
+        ms.Roles,
+        ms.Auth.validateFieldBeforeAuhtMsg,
+        ms.Auth.validateFieldBeforeAuhtDesc
+      );
+    }
+    if (!user.validPassword(password)) {
+      throw new CustomError(
+        Enum.HTTP_CODES.UNAUTHORIZED,
+        ms.Roles,
+        ms.Auth.validateFieldBeforeAuhtMsg,
+        ms.Auth.validateFieldBeforeAuhtDesc
+      );
+    }
+
+    let payload = {
+      id: user._id,
+      exp: parseInt(Date.now() / 1000) * config.JWT.EXPIRE_TIME,
+    };
+    let token = jwt.encode(payload, config.JWT.SECRET);
+    let userData = {
+      _id: user._id,
+      first_name: user.first_name,
+      last_name: user.last_name,
+    };
+    res.json(
+      Response.successResponse(
+        { token: token, user: userData },
+        ms.Auth.authBasariliMsg,
+        ms.Auth.authBasariliDesc
+      )
+    );
+  } catch (err) {
+    let errorResponse = Response.errorResponse(err);
+    res.status(errorResponse.code).json(errorResponse);
+  }
+});
+
+router.all("*", auth.authenticate(), (res, req, next) => {
+  next();
+});
+
+router.get("/",auth.checkRoles("user_view"), async (req, res) => {
   try {
     let users = await Users.find({});
 
     AuditLogs.info({
-      email: "req.user?.email",
+      email: req.user?.email,
       location: Enum.END_POINTS.USERS,
       proc_type: Enum.PROCESSES_TYPES.LIST,
       log: { ...users },
@@ -37,7 +201,7 @@ router.get("/", async (req, res, next) => {
   }
 });
 
-router.post("/add", async (req, res, next) => {
+router.post("/add",auth.checkRoles("user_add"), async (req, res) => {
   let body = req.body;
   try {
     if (!body.first_name)
@@ -118,7 +282,7 @@ router.post("/add", async (req, res, next) => {
     }
 
     AuditLogs.info({
-      email: "req.user?.email",
+      email: req.user?.email,
       location: Enum.END_POINTS.USERS,
       proc_type: Enum.PROCESSES_TYPES.CREATE,
       log: { ...createdUser },
@@ -137,7 +301,7 @@ router.post("/add", async (req, res, next) => {
   }
 });
 
-router.post("/update", async (req, res, next) => {
+router.post("/update",auth.checkRoles("user_update"), async (req, res) => {
   let body = req.body;
   try {
     if (!body._id)
@@ -200,7 +364,7 @@ router.post("/update", async (req, res, next) => {
     let user = await Users.find({ _id: body._id });
 
     AuditLogs.info({
-      email: "req.user?.email",
+      email: req.user?.email,
       location: Enum.END_POINTS.USERS,
       proc_type: Enum.PROCESSES_TYPES.UPDATE,
       log: { ...user },
@@ -219,7 +383,7 @@ router.post("/update", async (req, res, next) => {
   }
 });
 
-router.post("/delete", async (req, res, next) => {
+router.post("/delete",auth.checkRoles("user_delete"), async (req, res) => {
   let body = req.body;
   try {
     if (!body._id)
@@ -235,7 +399,7 @@ router.post("/delete", async (req, res, next) => {
     await UserRoles.deleteMany({ user_id: body._id });
 
     AuditLogs.info({
-      email: "req.user?.email",
+      email: req.user?.email,
       location: Enum.END_POINTS.USERS,
       proc_type: Enum.PROCESSES_TYPES.DELETE,
       log: { ...removedUser },
@@ -246,165 +410,6 @@ router.post("/delete", async (req, res, next) => {
         removedUser,
         ms.Users.delete.silmeBasariliTitle,
         ms.Users.delete.silmeBasariliDesc
-      )
-    );
-  } catch (err) {
-    let errorResponse = Response.errorResponse(err);
-    res.status(errorResponse.code).json(errorResponse);
-  }
-});
-
-router.post("/register", async (req, res, next) => {
-  let body = req.body;
-  try {
-    let user = await Users.findOne({});
-    if (user) {
-      return res.sendStatus(Enum.HTTP_CODES.NOT_FOUND);
-    }
-
-    if (!body.first_name)
-      throw new CustomError(
-        Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.first_nameValidationErrorMsg,
-        ms.Users.add.first_nameValidationErrorDesc
-      );
-
-    if (!body.last_name)
-      throw new CustomError(
-        Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.last_nameValidationErrorMsg,
-        ms.Users.add.last_nameValidationErrorDesc
-      );
-
-    if (!body.email)
-      throw new CustomError(
-        Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.emailValidationErrorMsg,
-        ms.Users.add.emailValidationErrorDesc
-      );
-
-    if (!is.email(body.email))
-      throw new CustomError(
-        Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.isEmailValidationErrorMsg,
-        ms.Users.add.isEmailValidationErrorDesc
-      );
-
-    if (!body.password)
-      throw new CustomError(
-        Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.passwordValidationErrorMsg,
-        ms.Users.add.passwordValidationErrorDesc
-      );
-
-    if (body.password < Enum.PASS_LENGTH)
-      throw new CustomError(
-        Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.passwordLenghtValidationErrorMsg,
-        ms.Users.add.passwordLenghtValidationErrorDesc
-      );
-
-    let password = bcrypt.hashSync(body.password, bcrypt.genSaltSync(8), null);
-
-    let createdUser = await Users.create({
-      email: body.email,
-      password: password,
-      is_active: body.is_active,
-      first_name: body.first_name,
-      last_name: body.last_name,
-      phone_number: body.phone_number,
-    });
-
-    if (createdUser) {
-      AuditLogs.info({
-        email: "req.user?.email",
-        location: Enum.END_POINTS.USERS,
-        proc_type: Enum.PROCESSES_TYPES.CREATE,
-        log: { ...createdUser },
-      });
-    }
-
-    let createdRole = await Roles.create({
-      role_name: Enum.SUPER_ADMIN,
-      is_active: true,
-      created_by: createdUser._id,
-    });
-
-    if (createdRole) {
-      AuditLogs.info({
-        email: "req.user?.email",
-        location: Enum.END_POINTS.ROLES,
-        proc_type: Enum.PROCESSES_TYPES.CREATE,
-        log: { ...createdRole },
-      });
-    }
-
-    await UserRoles.create({
-      role_id: createdRole._id,
-      user_id: createdUser._id,
-    });
-
-    if (UserRoles) {
-      AuditLogs.info({
-        email: "req.user?.email",
-        location: Enum.END_POINTS.USER_ROLES,
-        proc_type: Enum.PROCESSES_TYPES.CREATE,
-        log: { ...UserRoles },
-      });
-    }
-
-    res.json(
-      Response.successResponse(
-        createdUser,
-        ms.Users.add.eklemeBasariliTitle,
-        ms.Users.add.eklemeBasariliDesc
-      )
-    );
-  } catch (err) {
-    let errorResponse = Response.errorResponse(err);
-    res.status(errorResponse.code).json(errorResponse);
-  }
-});
-
-router.post("/auth", async (req, res) => {
-  let { email, password } = req.body;
-  try {
-    Users.validateFieldBeforeAuht(email, password);
-
-    let user = await Users.findOne({ email });
-
-    if (!user) {
-      throw new CustomError(
-        Enum.HTTP_CODES.UNAUTHORIZED,
-        ms.Roles,
-        ms.Auth.validateFieldBeforeAuhtMsg,
-        ms.Auth.validateFieldBeforeAuhtDesc
-      );
-    }
-    if (!user.validPassword(password)) {
-      throw new CustomError(
-        Enum.HTTP_CODES.UNAUTHORIZED,
-        ms.Roles,
-        ms.Auth.validateFieldBeforeAuhtMsg,
-        ms.Auth.validateFieldBeforeAuhtDesc
-      );
-    }
-
-    let payload = {
-      id: user._id,
-      exp: parseInt(Date.now() / 1000) * config.JWT.EXPIRE_TIME,
-    };
-    let token = jwt.encode(payload, config.JWT.SECRET);
-    let userData = {
-      _id: user._id,
-      first_name: user.first_name,
-      last_name: user.last_name,
-    };
-    res.json(
-      Response.successResponse(
-        { token: token, user: userData },
-        ms.Auth.authBasariliMsg,
-        ms.Auth.authBasariliDesc
       )
     );
   } catch (err) {

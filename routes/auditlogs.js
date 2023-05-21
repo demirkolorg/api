@@ -4,8 +4,13 @@ const Response = require("../lib/Response");
 const ms = require("../lib/MagicStrings");
 const AuditLogs = require("../db/models/AuditLogs");
 const moment = require("moment");
+const auth = require("../lib/auth")();
 
-router.post("/", async (req, res) => {
+router.all("*", auth.authenticate(), (res, req, next) => {
+  next();
+});
+
+router.post("/",auth.checkRoles("auditlogs_view"), async (req, res) => {
   try {
     let body = req.body;
     let query = {};

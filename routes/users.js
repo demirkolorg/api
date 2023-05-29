@@ -3,7 +3,8 @@ const router = express.Router();
 const Response = require("../lib/Response");
 const CustomError = require("../lib/Error");
 const Enum = require("../config/Enum");
-const ms = require("../lib/MagicStrings");
+// const ms = require("../lib/MagicStrings");
+const i18n = new (require("../lib/i18n"))();
 const bcrypt = require("bcrypt");
 const is = require("is_js");
 const Users = require("../db/models/Users");
@@ -25,43 +26,51 @@ router.post("/register", async (req, res) => {
     if (!body.first_name)
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.first_nameValidationErrorMsg,
-        ms.Users.add.first_nameValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user.language, [
+          "PARAMS.FIRST_NAME",
+        ])
       );
 
     if (!body.last_name)
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.last_nameValidationErrorMsg,
-        ms.Users.add.last_nameValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user.language, [
+          "PARAMS.LAST_NAME",
+        ])
       );
 
     if (!body.email)
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.emailValidationErrorMsg,
-        ms.Users.add.emailValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user.language, [
+          "PARAMS.EMAIL",
+        ])
       );
 
     if (!is.email(body.email))
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.isEmailValidationErrorMsg,
-        ms.Users.add.isEmailValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("USER.IS_EMAIL", req.user.language, ["PARAMS.NAME"])
       );
 
     if (!body.password)
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.passwordValidationErrorMsg,
-        ms.Users.add.passwordValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user.language, [
+          "PARAMS.PASSWORD",
+        ])
       );
 
     if (body.password < Enum.PASS_LENGTH)
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.passwordLenghtValidationErrorMsg,
-        ms.Users.add.passwordLenghtValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("USER.PASSWORD_LENGTH", req.user.language)
       );
 
     let password = bcrypt.hashSync(body.password, bcrypt.genSaltSync(8), null);
@@ -116,8 +125,10 @@ router.post("/register", async (req, res) => {
     res.json(
       Response.successResponse(
         createdUser,
-        ms.Users.add.eklemeBasariliTitle,
-        ms.Users.add.eklemeBasariliDesc
+        i18n.translate("COMMON.ADD_SUCCESSFUL_TITLE", req.user.language),
+        i18n.translate("COMMON.ADD_SUCCESSFUL_DESC", req.user.language, [
+          "ENDPOINTS.USER",
+        ])
       )
     );
   } catch (err) {
@@ -127,7 +138,7 @@ router.post("/register", async (req, res) => {
 });
 
 router.post("/auth", async (req, res) => {
-  let { email, password } = req.body;
+  let { email, password, language } = req.body;
   try {
     Users.validateFieldBeforeAuht(email, password);
 
@@ -136,17 +147,15 @@ router.post("/auth", async (req, res) => {
     if (!user) {
       throw new CustomError(
         Enum.HTTP_CODES.UNAUTHORIZED,
-        ms.Roles,
-        ms.Auth.validateFieldBeforeAuhtMsg,
-        ms.Auth.validateFieldBeforeAuhtDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("AUTH.VALIDATE_FIELD_BEFORE_AUTH", req.user.language)
       );
     }
     if (!user.validPassword(password)) {
       throw new CustomError(
         Enum.HTTP_CODES.UNAUTHORIZED,
-        ms.Roles,
-        ms.Auth.validateFieldBeforeAuhtMsg,
-        ms.Auth.validateFieldBeforeAuhtDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("AUTH.VALIDATE_FIELD_BEFORE_AUTH", req.user.language)
       );
     }
 
@@ -160,11 +169,12 @@ router.post("/auth", async (req, res) => {
       first_name: user.first_name,
       last_name: user.last_name,
     };
+
     res.json(
       Response.successResponse(
         { token: token, user: userData },
-        ms.Auth.authBasariliMsg,
-        ms.Auth.authBasariliDesc
+        i18n.translate("AUTH.AUTH_SUCCESSFUL_TITLE", language),
+        i18n.translate("AUTH.AUTH_SUCCESSFUL_DESC", language)
       )
     );
   } catch (err) {
@@ -177,7 +187,7 @@ router.all("*", auth.authenticate(), (res, req, next) => {
   next();
 });
 
-router.get("/",auth.checkRoles("user_view"), async (req, res) => {
+router.get("/", auth.checkRoles("user_view"), async (req, res) => {
   try {
     let users = await Users.find({});
 
@@ -191,8 +201,10 @@ router.get("/",auth.checkRoles("user_view"), async (req, res) => {
     res.json(
       Response.successResponse(
         users,
-        ms.Users.list.listelemeBasariliTitle,
-        ms.Users.list.listelemeBasariliDesc
+        i18n.translate("COMMON.ADD_SUCCESSFUL_TITLE", req.user.language),
+        i18n.translate("COMMON.ADD_SUCCESSFUL_DESC", req.user.language, [
+          "ENDPOINTS.USER",
+        ])
       )
     );
   } catch (err) {
@@ -201,56 +213,64 @@ router.get("/",auth.checkRoles("user_view"), async (req, res) => {
   }
 });
 
-router.post("/add",auth.checkRoles("user_add"), async (req, res) => {
+router.post("/add", auth.checkRoles("user_add"), async (req, res) => {
   let body = req.body;
   try {
     if (!body.first_name)
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.first_nameValidationErrorMsg,
-        ms.Users.add.first_nameValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user.language, [
+          "PARAMS.FIRST_NAME",
+        ])
       );
 
     if (!body.last_name)
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.last_nameValidationErrorMsg,
-        ms.Users.add.last_nameValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user.language, [
+          "PARAMS.LAST_NAME",
+        ])
       );
 
     if (!body.email)
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.emailValidationErrorMsg,
-        ms.Users.add.emailValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user.language, [
+          "PARAMS.EMAIL",
+        ])
       );
 
     if (!is.email(body.email))
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.isEmailValidationErrorMsg,
-        ms.Users.add.isEmailValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("USER.IS_EMAIL", req.user.language, ["PARAMS.NAME"])
       );
 
     if (!body.password)
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.passwordValidationErrorMsg,
-        ms.Users.add.passwordValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user.language, [
+          "PARAMS.PASSWORD",
+        ])
       );
 
     if (body.password < Enum.PASS_LENGTH)
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.passwordLenghtValidationErrorMsg,
-        ms.Users.add.passwordLenghtValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("USER.PASSWORD_LENGTH", req.user.language)
       );
 
     if (!body.roles || !Array.isArray(body.roles) || body.roles.length == 0)
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.rolesValidationErrorMsg,
-        ms.Users.add.rolesValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("USER.ROLE_VALIDATION", req.user.language)
       );
 
     let roles = await Roles.find({ _id: { $in: body.roles } });
@@ -258,8 +278,8 @@ router.post("/add",auth.checkRoles("user_add"), async (req, res) => {
     if (roles.length == 0)
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.rolesValidationErrorMsg,
-        ms.Users.add.rolesValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("USER.ROLE_VALIDATION", req.user.language)
       );
 
     let password = bcrypt.hashSync(body.password, bcrypt.genSaltSync(8), null);
@@ -291,8 +311,10 @@ router.post("/add",auth.checkRoles("user_add"), async (req, res) => {
     res.json(
       Response.successResponse(
         createdUser,
-        ms.Users.add.eklemeBasariliTitle,
-        ms.Users.add.eklemeBasariliDesc
+        i18n.translate("COMMON.ADD_SUCCESSFUL_TITLE", req.user.language),
+        i18n.translate("COMMON.ADD_SUCCESSFUL_DESC", req.user.language, [
+          "ENDPOINTS.USER",
+        ])
       )
     );
   } catch (err) {
@@ -301,14 +323,16 @@ router.post("/add",auth.checkRoles("user_add"), async (req, res) => {
   }
 });
 
-router.post("/update",auth.checkRoles("user_update"), async (req, res) => {
+router.post("/update", auth.checkRoles("user_update"), async (req, res) => {
   let body = req.body;
   try {
     if (!body._id)
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.update.idValidationErrorMsg,
-        ms.Users.update.idValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user.language, [
+          "PARAMS.ID",
+        ])
       );
 
     let roles = Roles.find({ _id: { $in: body.roles } });
@@ -316,8 +340,8 @@ router.post("/update",auth.checkRoles("user_update"), async (req, res) => {
     if (roles.length == 0)
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.add.rolesValidationErrorMsg,
-        ms.Users.add.rolesValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("USER.ROLE_VALIDATION", req.user.language)
       );
     let updates = {};
 
@@ -373,8 +397,10 @@ router.post("/update",auth.checkRoles("user_update"), async (req, res) => {
     res.json(
       Response.successResponse(
         user,
-        ms.Users.update.guncellemeBasariliTitle,
-        ms.Users.update.guncellemeBasariliDesc
+        i18n.translate("COMMON.UPDATE_SUCCESSFUL_TITLE", req.user.language),
+        i18n.translate("COMMON.UPDATE_SUCCESSFUL_DESC", req.user.language, [
+          "ENDPOINTS.USER",
+        ])
       )
     );
   } catch (err) {
@@ -383,14 +409,16 @@ router.post("/update",auth.checkRoles("user_update"), async (req, res) => {
   }
 });
 
-router.post("/delete",auth.checkRoles("user_delete"), async (req, res) => {
+router.post("/delete", auth.checkRoles("user_delete"), async (req, res) => {
   let body = req.body;
   try {
     if (!body._id)
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Users.delete.idValidationErrorMsg,
-        ms.Users.delete.idValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user.language, [
+          "PARAMS.ID",
+        ])
       );
 
     let removedUser = await Users.find({ _id: body._id });
@@ -408,8 +436,10 @@ router.post("/delete",auth.checkRoles("user_delete"), async (req, res) => {
     res.json(
       Response.successResponse(
         removedUser,
-        ms.Users.delete.silmeBasariliTitle,
-        ms.Users.delete.silmeBasariliDesc
+        i18n.translate("COMMON.DELETE_SUCCESSFUL_TITLE", req.user.language),
+        i18n.translate("COMMON.DELETE_SUCCESSFUL_DESC", req.user.language, [
+          "ENDPOINTS.USER",
+        ])
       )
     );
   } catch (err) {

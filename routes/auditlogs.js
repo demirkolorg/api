@@ -1,7 +1,7 @@
 var express = require("express");
 var router = express.Router();
 const Response = require("../lib/Response");
-const ms = require("../lib/MagicStrings");
+const i18n = new (require("../lib/i18n"))();
 const AuditLogs = require("../db/models/AuditLogs");
 const moment = require("moment");
 const auth = require("../lib/auth")();
@@ -10,7 +10,7 @@ router.all("*", auth.authenticate(), (res, req, next) => {
   next();
 });
 
-router.post("/",auth.checkRoles("auditlogs_view"), async (req, res) => {
+router.post("/", auth.checkRoles("auditlogs_view"), async (req, res) => {
   try {
     let body = req.body;
     let query = {};
@@ -39,12 +39,14 @@ router.post("/",auth.checkRoles("auditlogs_view"), async (req, res) => {
     res.json(
       Response.successResponse(
         auditLogs,
-        ms.AuditLogs.list.listelemeBasariliTitle,
-        ms.AuditLogs.list.listelemeBasariliDesc
+        i18n.translate("COMMON.LIST_SUCCESSFUL_TITLE", req.user.language),
+        i18n.translate("COMMON.LIST_SUCCESSFUL_DESC", req.user.language, [
+          "ENDPOINTS.AUDIT_LOG",
+        ])
       )
     );
   } catch (err) {
-    let errorResponse = Response.errorResponse(err);
+    let errorResponse = Response.errorResponse(err, req.user?.language);
     res.status(errorResponse.code).json(errorResponse);
   }
 });

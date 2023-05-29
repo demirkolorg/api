@@ -1,9 +1,11 @@
 const mongoose = require("mongoose");
 const Enum = require("../../config/Enum");
 const CustomError = require("../../lib/Error");
-const MagicStrings = require("../../lib/MagicStrings");
+// const MagicStrings = require("../../lib/MagicStrings");
 const bcrypt = require("bcrypt");
 const is = require("is_js");
+const config = require("../../config");
+const i18n = require("../../i18n");
 
 const schema = mongoose.Schema(
   {
@@ -13,6 +15,7 @@ const schema = mongoose.Schema(
     first_name: { type: String, required: true },
     last_name: { type: String, required: true },
     phone_number: String,
+    language: { type: String, default: config.DEFAULT_LANG },
   },
   {
     timestamps: {
@@ -27,7 +30,7 @@ class Users extends mongoose.Model {
     return bcrypt.compare(password, this.password);
   }
 
-  static validateFieldBeforeAuht(email, passpord) {
+  static validateFieldBeforeAuht(email, passpord,lang) {
     if (
       typeof passpord !== "string" ||
       passpord.length < Enum.PASS_LENGTH ||
@@ -35,8 +38,8 @@ class Users extends mongoose.Model {
     )
       throw new CustomError(
         Enum.HTTP_CODES.UNAUTHORIZED,
-        MagicStrings.Auth.validateFieldBeforeAuhtMsg,
-        MagicStrings.Auth.validateFieldBeforeAuhtDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", lang),
+        i18n.translate("AUTH.VALIDATE_FIELD_BEFORE_AUTH", lang)
       );
     return null;
   }

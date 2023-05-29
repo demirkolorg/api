@@ -4,7 +4,7 @@ const Categories = require("../db/models/Categories");
 const Response = require("../lib/Response");
 const CustomError = require("../lib/Error");
 const Enum = require("../config/Enum");
-const ms = require("../lib/MagicStrings");
+const i18n = new (require("../lib/i18n"))();
 const AuditLogs = require("../lib/AuditLogs");
 const Logger = require("../lib/logs/LoggerClass");
 const auth = require("../lib/auth")();
@@ -13,7 +13,7 @@ router.all("*", auth.authenticate(), (res, req, next) => {
   next();
 });
 
-router.get("/",auth.checkRoles("category_view"), async (req, res, next) => {
+router.get("/", auth.checkRoles("category_view"), async (req, res, next) => {
   try {
     let categories = await Categories.find({});
 
@@ -27,8 +27,10 @@ router.get("/",auth.checkRoles("category_view"), async (req, res, next) => {
     res.json(
       Response.successResponse(
         categories,
-        ms.Categories.list.listelemeBasariliTitle,
-        ms.Categories.list.listelemeBasariliDesc
+        i18n.translate("COMMON.LIST_SUCCESSFUL_TITLE", req.user.language),
+        i18n.translate("COMMON.LIST_SUCCESSFUL_DESC", req.user.language, [
+          "ENDPOINTS.CATEGORY",
+        ])
       )
     );
   } catch (err) {
@@ -44,14 +46,16 @@ router.get("/",auth.checkRoles("category_view"), async (req, res, next) => {
   }
 });
 
-router.post("/add",auth.checkRoles("category_add"), async (req, res, next) => {
+router.post("/add", auth.checkRoles("category_add"), async (req, res, next) => {
   let body = req.body;
   try {
     if (!body.name)
       throw new CustomError(
         Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Categories.add.nameValidationErrorMsg,
-        ms.Categories.add.nameValidationErrorDesc
+        i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+        i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user.language, [
+          "PARAMS.NAME",
+        ])
       );
 
     let category = new Categories({
@@ -79,8 +83,10 @@ router.post("/add",auth.checkRoles("category_add"), async (req, res, next) => {
     res.json(
       Response.successResponse(
         category,
-        ms.Categories.add.eklemeBasariliTitle,
-        ms.Categories.add.eklemeBasariliDesc
+        i18n.translate("COMMON.ADD_SUCCESSFUL_TITLE", req.user.language),
+        i18n.translate("COMMON.ADD_SUCCESSFUL_DESC", req.user.language, [
+          "ENDPOINTS.CATEGORIES",
+        ])
       )
     );
   } catch (err) {
@@ -96,75 +102,92 @@ router.post("/add",auth.checkRoles("category_add"), async (req, res, next) => {
   }
 });
 
-router.post("/update",auth.checkRoles("category_update"), async (req, res, next) => {
-  let body = req.body;
-  try {
-    if (!body._id)
-      throw new CustomError(
-        Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Categories.update.idValidationErrorMsg,
-        ms.Categories.update.idValidationErrorDesc
+router.post(
+  "/update",
+  auth.checkRoles("category_update"),
+  async (req, res, next) => {
+    let body = req.body;
+    try {
+      if (!body._id)
+        throw new CustomError(
+          Enum.HTTP_CODES.BAD_REQUEST,
+          i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+          i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user.language, [
+            "PARAMS.ID",
+          ])
+        );
+
+      let updates = {};
+
+      if (body.name) updates.name = body.name;
+      if (typeof body.is_active === "boolean")
+        updates.is_active = body.is_active;
+      await Categories.updateOne({ _id: body._id }, updates);
+      let category = await Categories.find({ _id: body._id });
+
+      AuditLogs.info({
+        email: req.user?.email,
+        location: Enum.END_POINTS.CATEGORIES,
+        proc_type: Enum.PROCESSES_TYPES.UPDATE,
+        log: { ...category },
+      });
+
+      res.json(
+        Response.successResponse(
+          category,
+          i18n.translate("COMMON.UPDATE_SUCCESSFUL_TITLE", req.user.language),
+          i18n.translate("COMMON.UPDATE_SUCCESSFUL_DESC", req.user.language, [
+            "ENDPOINTS.CATEGORIES",
+          ])
+        )
       );
-
-    let updates = {};
-
-    if (body.name) updates.name = body.name;
-    if (typeof body.is_active === "boolean") updates.is_active = body.is_active;
-    await Categories.updateOne({ _id: body._id }, updates);
-    let category = await Categories.find({ _id: body._id });
-
-    AuditLogs.info({
-      email: req.user?.email,
-      location: Enum.END_POINTS.CATEGORIES,
-      proc_type: Enum.PROCESSES_TYPES.UPDATE,
-      log: { ...category },
-    });
-
-    res.json(
-      Response.successResponse(
-        category,
-        ms.Categories.update.guncellemeBasariliTitle,
-        ms.Categories.update.guncellemeBasariliDesc
-      )
-    );
-  } catch (err) {
-    let errorResponse = Response.errorResponse(err);
-    res.status(errorResponse.code).json(errorResponse);
+    } catch (err) {
+      let errorResponse = Response.errorResponse(err);
+      res.status(errorResponse.code).json(errorResponse);
+    }
   }
-});
+);
 
-router.post("/delete",auth.checkRoles("category_delete"), async (req, res, next) => {
-  let body = req.body;
-  try {
-    if (!body._id)
-      throw new CustomError(
-        Enum.HTTP_CODES.BAD_REQUEST,
-        ms.Categories.delete.idValidationErrorMsg,
-        ms.Categories.delete.idValidationErrorDesc
+router.post(
+  "/delete",
+  auth.checkRoles("category_delete"),
+  async (req, res, next) => {
+    let body = req.body;
+    try {
+      if (!body._id)
+        throw new CustomError(
+          Enum.HTTP_CODES.BAD_REQUEST,
+          i18n.translate("COMMON.VALIDATION_ERROR_TITLE", req.user.language),
+          i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user.language, [
+            "PARAMS.ID",
+          ])
+        );
+
+      let removedCategory = await Categories.find({ _id: body._id });
+
+      await Categories.deleteOne({ _id: body._id });
+
+      AuditLogs.info({
+        email: req.user?.email,
+        location: Enum.END_POINTS.CATEGORIES,
+        proc_type: Enum.PROCESSES_TYPES.DELETE,
+        log: { ...removedCategory },
+      });
+
+      res.json(
+        Response.successResponse(
+          removedCategory,
+          i18n.translate("COMMON.DELETE_SUCCESSFUL_TITLE", req.user.language),
+          i18n.translate("COMMON.DELETE_SUCCESSFUL_DESC", req.user.language, [
+            "ENDPOINTS.CATEGORIES",
+          ])
+        )
       );
-
-    let removedCategory = await Categories.find({ _id: body._id });
-
-    await Categories.deleteOne({ _id: body._id });
-
-    AuditLogs.info({
-      email: req.user?.email,
-      location: Enum.END_POINTS.CATEGORIES,
-      proc_type: Enum.PROCESSES_TYPES.DELETE,
-      log: { ...removedCategory },
-    });
-
-    res.json(
-      Response.successResponse(
-        removedCategory,
-        ms.Categories.delete.silmeBasariliTitle,
-        ms.Categories.delete.silmeBasariliDesc
-      )
-    );
-  } catch (err) {
-    let errorResponse = Response.errorResponse(err);
-    res.status(errorResponse.code).json(errorResponse);
+    } catch (err) {
+      let errorResponse = Response.errorResponse(err);
+      res.status(errorResponse.code).json(errorResponse);
+    }
   }
-});
+);
 
 module.exports = router;
